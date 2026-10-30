@@ -16,4 +16,6 @@ public class Constants {
 	public static final int SERVICE_STATE_SUSPENDED = 0;
 	public static final int SERVICE_STATE_PAUSED = 1;
 	public static final int SERVICE_STATE_ACTIVE = 2;
+
+	public static final String COMPANION_PACKAGE = "com.mine.autoshine.companion";
 }

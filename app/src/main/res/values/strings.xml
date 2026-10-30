@@ -29,4 +29,7 @@
     <string name="suspended">Suspended</string>
     <string name="threshold_c">Threshold:</string>
     <string name="m_rotate">On rotate</string>
+    <string name="companion_writer">Write via Shizuku (shell access, for ColorOS)</string>
+    <string name="shizuku_not_running">Shizuku is not running. Open Shizuku and start it first.</string>
+    <string name="shizuku_denied">Shizuku permission denied.</string>
 </resources>

@@ -4,12 +4,15 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.method.LinkMovementMethod;
@@ -17,6 +20,9 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.*;
+
+import rikka.shizuku.Shizuku;
+import rikka.shizuku.ShizukuProvider;
 
 public class MainActivity extends Activity {
 
@@ -30,6 +36,22 @@ public class MainActivity extends Activity {
 	private PowerManager powerMan;
 	private MySettings sett;
 
+	// The status label only flips to "running" when the service is truly up — the
+	// old code left it on "Starting…" until onResume, and a second Start press in
+	// that window would actually stop the running service.
+	private boolean serviceBound;
+	private final ServiceConnection serviceConnection = new ServiceConnection() {
+		@Override
+		public void onServiceConnected(ComponentName name, IBinder binder) {
+			displayServiceStatus(1);
+		}
+
+		@Override
+		public void onServiceDisconnected(ComponentName name) {
+			displayServiceStatus(0);
+		}
+	};
+
 	private boolean isExpanded = false;
 	private boolean isDialogShown = false;
 
@@ -37,6 +59,10 @@ public class MainActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+
+		// Main process hosts the Shizuku provider; arm the broadcast so the pushed
+		// binder also reaches the :BacklightController process.
+		ShizukuProvider.enableMultiProcessSupport(true);
 
 		powerMan = (PowerManager) getSystemService(POWER_SERVICE);
 		sett = new MySettings(this);
@@ -130,6 +156,20 @@ public class MainActivity extends Activity {
 			sendBroadcastToService(Constants.SERVICE_INTENT_PAYLOAD_SET);
 		});
 
+		CheckBox chCompanion = findViewById(R.id.ch_companion_writer);
+		chCompanion.setChecked(sett.companion);
+		chCompanion.setOnCheckedChangeListener((compoundButton, isChecked) -> {
+			if (isChecked && !shizukuReady()) {
+				// Revert until Shizuku grants; the pref flips on grant.
+				compoundButton.setChecked(false);
+				requestShizuku();
+				return;
+			}
+			sett.companion = isChecked;
+			sett.save();
+			sendBroadcastToService(Constants.SERVICE_INTENT_PAYLOAD_SET);
+		});
+
 		RadioButton rbWAlways = findViewById(R.id.rb_work_always);
 		RadioButton rbWPortrait = findViewById(R.id.rb_work_portrait);
 		RadioButton rbWLandscape = findViewById(R.id.rb_work_landscape);
@@ -219,7 +259,20 @@ public class MainActivity extends Activity {
 		} else {
 			startService(serviceIntent);
 		}
+		if (!serviceBound) {
+			bindService(serviceIntent, serviceConnection, 0);
+			serviceBound = true;
+		}
 		Toast.makeText(this, getResources().getString(R.string.starting_service), Toast.LENGTH_SHORT).show();
+	}
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		if (serviceBound) {
+			unbindService(serviceConnection);
+			serviceBound = false;
+		}
 	}
 
 	private void killService() {
@@ -256,6 +309,46 @@ public class MainActivity extends Activity {
 		if (this.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
 			this.requestPermissions(new String[]{Manifest.permission.READ_PHONE_STATE}, 123);
 		}
+	}
+
+	private boolean shizukuReady() {
+		try {
+			return Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+		} catch (Throwable t) {
+			return false;
+		}
+	}
+
+	private void requestShizuku() {
+		if (!Shizuku.pingBinder()) {
+			Toast.makeText(this, R.string.shizuku_not_running, Toast.LENGTH_LONG).show();
+			return;
+		}
+		Shizuku.addBinderReceivedListenerSticky(() -> {
+			if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+				enableCompanionMode();
+				return;
+			}
+			Shizuku.addRequestPermissionResultListener(new Shizuku.OnRequestPermissionResultListener() {
+				@Override
+				public void onRequestPermissionResult(int requestCode, int grantResult) {
+					Shizuku.removeRequestPermissionResultListener(this);
+					if (grantResult == PackageManager.PERMISSION_GRANTED) {
+						enableCompanionMode();
+					} else {
+						Toast.makeText(MainActivity.this, R.string.shizuku_denied, Toast.LENGTH_LONG).show();
+					}
+				}
+			});
+			Shizuku.requestPermission(0);
+		});
+	}
+
+	private void enableCompanionMode() {
+		sett.companion = true;
+		sett.save();
+		((CheckBox) findViewById(R.id.ch_companion_writer)).setChecked(true);
+		sendBroadcastToService(Constants.SERVICE_INTENT_PAYLOAD_SET);
 	}
 
 	private boolean checkAndRequestPermissions() {

@@ -14,6 +14,8 @@ import android.os.IBinder;
 import android.widget.Toast;
 import android.content.res.Configuration;
 
+import rikka.shizuku.ShizukuProvider;
+
 public class ShineService extends Service {
 	private ShineControl shiner;
 
@@ -89,6 +91,12 @@ public class ShineService extends Service {
 	public void onCreate() {
 		super.onCreate();
 		setUpAsForeground();
+
+		// This service (and ShineControl's Shizuku writer) runs in :BacklightController,
+		// while the Shizuku provider lives in the main process — pull the binder into
+		// this process per the API's multi-process recipe.
+		ShizukuProvider.enableMultiProcessSupport(false);
+		ShizukuProvider.requestBinderForNonProviderProcess(this);
 
 		shiner = new ShineControl(this);
 

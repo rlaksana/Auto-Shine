@@ -380,6 +380,13 @@
                     android:layout_marginHorizontal="46px"
                     android:text="@string/m_rotate" />
 
+                <CheckBox
+                    android:id="@+id/ch_companion_writer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="46px"
+                    android:text="@string/companion_writer" />
+
             </RadioGroup>
 
         </LinearLayout>

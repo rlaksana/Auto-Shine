@@ -10,6 +10,7 @@ public class MySettings {
 	public int threshold;
 	public int mode;
 	public boolean rotate;
+	public boolean companion;
 
 	MySettings(Context context) {
 		this.context = context;
@@ -29,6 +30,7 @@ public class MySettings {
 		threshold = sharedPref.getInt("threshold", 0);
 		mode = sharedPref.getInt("mode", Constants.WORK_MODE_ALWAYS);
 		rotate = sharedPref.getBoolean("rotate", true);
+		companion = sharedPref.getBoolean("companion", false);
 	}
 
 	public void save() {
@@ -44,6 +46,7 @@ public class MySettings {
 		editor.putInt("threshold", threshold);
 		editor.putInt("mode", mode);
 		editor.putBoolean("rotate", rotate);
+		editor.putBoolean("companion", companion);
 		editor.commit();
 	}
 }
