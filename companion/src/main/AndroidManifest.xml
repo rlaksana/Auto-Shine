@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Only APKs signed with the same key may command a write. -->
+    <permission
+        android:name="com.mine.autoshine.companion.WRITE_BRIGHTNESS"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- No sensor here on purpose: ColorOS DpcExtImpl fights writers that hold a
+             light sensor and adopts writers that don't (shell, Rogulin evidence).
+             The signature permission keeps other apps from commanding a write. -->
+        <activity
+            android:name=".WriteActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:permission="com.mine.autoshine.companion.WRITE_BRIGHTNESS"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+
+</manifest>
