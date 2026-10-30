@@ -12,3 +12,4 @@ local.properties
 .codegraph/
 .serena/
 /companion/build
+.codegraphignore
