@@ -7,6 +7,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.display.DisplayManager;
 
 import android.os.Handler;
 import android.os.Build;
@@ -20,6 +21,7 @@ import android.content.res.Resources;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
+import android.view.Display;
 
 import rikka.shizuku.Shizuku;
 import rikka.shizuku.ShizukuProvider;
@@ -96,13 +98,18 @@ public class ShineControl implements SensorEventListener {
 		// TODO Auto-generated method stub
 	}
 
+	// True when the physical display is off even while the device stays awake:
+	// scrcpy's turn-screen-off keeps the system interactive and sends no
+	// ACTION_SCREEN_OFF, so neither stopListening() nor isInteractive can see it.
+	private boolean isDisplayPhysicallyOff() {
+		Display d = ((DisplayManager) mContext.getSystemService(Context.DISPLAY_SERVICE))
+				.getDisplay(Display.DEFAULT_DISPLAY);
+		return d != null && d.getState() != Display.STATE_ON;
+	}
+
 	@Override
 	public void onSensorChanged(SensorEvent event) {
 		if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
-			// Oppo "Fusion Light" sensors pack lux in values[6] and keep values[0] at 0
-			lux = (event.sensor.getName().contains("Fusion") && event.values.length > 6)
-					? event.values[6] : event.values[0];
-
 			// Companion mode polls: any ongoing registration makes ColorOS override
 			// even other apps' writes, so sample one event, unregister at once, and
 			// let the timed re-register start the next cycle.
@@ -111,6 +118,15 @@ public class ShineControl implements SensorEventListener {
 				onListen = false;
 				delayer.postDelayed(resumeListening, poll);
 			}
+
+			// Display off -> no light capture, no brightness adjust. Sampling resumes
+			// on the next event/poll once the display is on again, no state needed.
+			if (isDisplayPhysicallyOff())
+				return;
+
+			// Oppo "Fusion Light" sensors pack lux in values[6] and keep values[0] at 0
+			lux = (event.sensor.getName().contains("Fusion") && event.values.length > 6)
+					? event.values[6] : event.values[0];
 
 			setBrightness((int) lux);
 		}
@@ -324,6 +340,15 @@ public class ShineControl implements SensorEventListener {
 		public void run() {
 			if (pendingBrightness == -1)
 				return;
+			// In-flight race: this write was scheduled while the display was on and
+			// may now execute against a physically-off display, where ColorOS applies
+			// it by lighting the backlight. Drop without touching lastWritten, so the
+			// next event reschedules once the display is on again.
+			if (isDisplayPhysicallyOff()) {
+				Log.i("ShineControl", "display off, drop write " + pendingBrightness);
+				pendingBrightness = -1;
+				return;
+			}
 			int value = pendingBrightness;
 			pendingBrightness = -1;
 			// lastWritten is set on verified success only — setting it here would make
